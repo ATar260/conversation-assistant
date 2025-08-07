@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Conversation Assistant</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .header {
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #718096;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #e53e3e;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background-color: #38a169;
+        }
+
+        .control-section {
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+            min-width: 150px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #e53e3e;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(229, 62, 62, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .content-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .card {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .card-icon {
+            margin-right: 10px;
+            font-size: 1.5rem;
+        }
+
+        .content-area {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 150px;
+            border: 1px solid #e2e8f0;
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #4a5568;
+            overflow-y: auto;
+            max-height: 300px;
+        }
+
+        .suggestion {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            font-weight: 600;
+            text-align: center;
+            animation: slideIn 0.5s ease;
+        }
+
+        .transcript {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #667eea;
+            animation: slideIn 0.5s ease;
+        }
+
+        .status-message {
+            background: #e6fffa;
+            color: #234e52;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #38a169;
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #e53e3e;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .title {
+                font-size: 2rem;
+            }
+            
+            .content-section {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .btn {
+                margin: 5px;
+                min-width: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">🎤 HEYGENT A.I.</h1>
+            <p class="subtitle">Our agent will tell you what to say next, plug in an audio device and start talking.</p>
+            <div class="status-indicator" id="statusIndicator"></div>
+            <span id="statusText">Connecting...</span>
+        </div>
+
+        <div class="control-section">
+            <button class="btn btn-primary" id="startBtn" onclick="startListening()">
+                🎤 Start Listening
+            </button>
+            <button class="btn btn-secondary" id="stopBtn" onclick="stopListening()" disabled>
+                ⏹️ Stop Listening
+            </button>
+        </div>
+
+        <div id="statusMessage" style="display: none;"></div>
+
+        <div class="content-section">
+            <div class="card">
+                <div class="card-title">
+                    <span class="card-icon">📝</span>
+                    Live Transcript
+                </div>
+                <div class="content-area" id="transcriptArea">
+                    <p style="color: #a0aec0; text-align: center; margin-top: 50px;">
+                        Start listening to see the live transcript here...
+                    </p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span class="card-icon">💡</span>
+                    AI Suggestions
+                </div>
+                <div class="content-area" id="suggestionArea">
+                    <p style="color: #a0aec0; text-align: center; margin-top: 50px;">
+                        AI suggestions will appear here...
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let isListening = false;
+
+        // DOM elements
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusMessage = document.getElementById('statusMessage');
+        const transcriptArea = document.getElementById('transcriptArea');
+        const suggestionArea = document.getElementById('suggestionArea');
+
+        // Socket event handlers
+        socket.on('connect', function() {
+            statusIndicator.classList.add('connected');
+            statusText.textContent = 'Connected';
+            showStatus('Connected to server successfully!', 'success');
+        });
+
+        socket.on('disconnect', function() {
+            statusIndicator.classList.remove('connected');
+            statusText.textContent = 'Disconnected';
+            showStatus('Disconnected from server', 'error');
+        });
+
+        socket.on('status', function(data) {
+            showStatus(data.message, 'success');
+        });
+
+        socket.on('transcript', function(data) {
+            addTranscript(data.text);
+        });
+
+        socket.on('suggestion', function(data) {
+            addSuggestion(data.text);
+        });
+
+        socket.on('audio_response', function(data) {
+            playAudio(data.audio);
+        });
+
+        socket.on('error', function(data) {
+            showStatus('Error: ' + data.message, 'error');
+        });
+
+        function startListening() {
+            if (!isListening) {
+                socket.emit('start_listening');
+                isListening = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                showStatus('Starting to listen...', 'success');
+            }
+        }
+
+        function stopListening() {
+            if (isListening) {
+                socket.emit('stop_listening');
+                isListening = false;
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                showStatus('Stopped listening', 'success');
+            }
+        }
+
+        function showStatus(message, type) {
+            statusMessage.style.display = 'block';
+            statusMessage.className = type === 'error' ? 'error-message' : 'status-message';
+            statusMessage.innerHTML = message;
+            
+            setTimeout(() => {
+                statusMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        function addTranscript(text) {
+            const transcriptDiv = document.createElement('div');
+            transcriptDiv.className = 'transcript';
+            transcriptDiv.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${text}`;
+            
+            transcriptArea.appendChild(transcriptDiv);
+            transcriptArea.scrollTop = transcriptArea.scrollHeight;
+            
+            // Keep only last 10 transcripts
+            while (transcriptArea.children.length > 10) {
+                transcriptArea.removeChild(transcriptArea.firstChild);
+            }
+        }
+
+        function addSuggestion(text) {
+            const suggestionDiv = document.createElement('div');
+            suggestionDiv.className = 'suggestion';
+            suggestionDiv.innerHTML = `<strong>💡 ${text}</strong>`;
+            
+            suggestionArea.appendChild(suggestionDiv);
+            suggestionArea.scrollTop = suggestionArea.scrollHeight;
+            
+            // Keep only last 5 suggestions
+            while (suggestionArea.children.length > 5) {
+                suggestionArea.removeChild(suggestionArea.firstChild);
+            }
+        }
+
+        function playAudio(base64Audio) {
+            const audio = new Audio('data:audio/mp3;base64,' + base64Audio);
+            audio.play().catch(e => {
+                console.log('Audio playback failed:', e);
+            });
+        }
+
+        // Handle page unload
+        window.addEventListener('beforeunload', function() {
+            if (isListening) {
+                socket.emit('stop_listening');
+            }
+        });
+    </script>
+</body>
+</html> 
