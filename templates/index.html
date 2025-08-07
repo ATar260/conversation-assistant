@@ -290,6 +290,8 @@
     <script>
         const socket = io();
         let isListening = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
 
         // DOM elements
         const statusIndicator = document.getElementById('statusIndicator');
@@ -333,18 +335,55 @@
             showStatus('Error: ' + data.message, 'error');
         });
 
-        function startListening() {
+        async function startListening() {
             if (!isListening) {
-                socket.emit('start_listening');
-                isListening = true;
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-                showStatus('Starting to listen...', 'success');
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+                    
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const base64Audio = reader.result.split(',')[1];
+                            socket.emit('process_audio', { audio: base64Audio });
+                        };
+                        reader.readAsDataURL(audioBlob);
+                    };
+                    
+                    // Start recording in 5-second chunks
+                    mediaRecorder.start();
+                    setInterval(() => {
+                        if (mediaRecorder && mediaRecorder.state === 'recording') {
+                            mediaRecorder.stop();
+                            mediaRecorder.start();
+                        }
+                    }, 5000);
+                    
+                    socket.emit('start_listening');
+                    isListening = true;
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    showStatus('Started listening...', 'success');
+                } catch (error) {
+                    showStatus('Error accessing microphone: ' + error.message, 'error');
+                }
             }
         }
 
         function stopListening() {
             if (isListening) {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
+                if (mediaRecorder && mediaRecorder.stream) {
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                }
                 socket.emit('stop_listening');
                 isListening = false;
                 startBtn.disabled = false;
