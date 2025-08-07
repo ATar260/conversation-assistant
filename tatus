@@ -1,3 +1,0 @@
-[33m3aa35db[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Security fix: Remove all hardcoded API keys
-[33m86409eb[m Security fix: Remove hardcoded API key
-[33mff59446[m Initial commit - Real-time conversation assistant
