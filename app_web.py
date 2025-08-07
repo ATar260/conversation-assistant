@@ -16,7 +16,14 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # === CONFIGURATION ===
-client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+api_key = os.environ.get('OPENAI_API_KEY')
+if not api_key:
+    print("⚠️ WARNING: OPENAI_API_KEY environment variable not set!")
+    print("Please set the OPENAI_API_KEY environment variable in Railway.")
+    print("The app will start but won't be able to process audio.")
+    client = None
+else:
+    client = OpenAI(api_key=api_key)
 
 # === GLOBAL STATE ===
 conversation_history = []  # Track recent conversation topics
@@ -114,6 +121,10 @@ def handle_disconnect():
 def handle_process_audio(data):
     """Handle audio data sent from the frontend"""
     try:
+        if not client:
+            emit('error', {'message': 'OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.'})
+            return
+            
         audio_data = data.get('audio')
         if not audio_data:
             emit('error', {'message': 'No audio data received'})
